@@ -112,6 +112,9 @@ HEADER_CLIENT_IPS = ['True-Client-IP', 'NS-Client-IP']
 
 FUTURAMA = 'Mon, 28-Sep-2026 21:46:59 GMT'
 
+# HTTP/1.1 request methods
+HTTP_METHODS = ['OPTIONS', 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE', 'CONNECT']
+
 try:
     # If we can get the hostname, obfuscate and add a header
     hostre = re.compile('^([A-Za-z\-_]+)(\d+|)(\.\w+|)')
@@ -374,33 +377,36 @@ class HttpProtocol(coro.Thread, BaseHTTPServer.BaseHTTPRequestHandler):
         self.server.request_started(self.request, self._req_time)
 
         try:
-            try:
-                for handler in self.handlers:
-                    if handler.match(self.request):
-                        self.debug('Calling handler: %r' % (handler,))
+            if self.command not in HTTP_METHODS:
+                self.send_error(501)
+            else:
+                try:
+                    for handler in self.handlers:
+                        if handler.match(self.request):
+                            self.debug('Calling handler: %r' % (handler,))
 
-                        handler.handle_request(self.request)
-                        self.push('')
-                        break
-                else:
-                    self.debug('handler not found: %r' % (self.request))
-                    self.send_error(404)
-            except (
-                ConnectionClosed,
-                coro.TimeoutError,
-                coro.CoroutineSocketWake,
-                socket.error):
-                #
-                # can not send the error, since it is an IO problem,
-                # but set the response code anyway to something denoting
-                # the issue
-                #
-                self.traceback(logging.DEBUG)
-                self.response(506)
-                raise
-            except:
-                self.traceback()
-                self.send_error(500)
+                            handler.handle_request(self.request)
+                            self.push('')
+                            break
+                    else:
+                        self.debug('handler not found: %r' % (self.request))
+                        self.send_error(404)
+                except (
+                    ConnectionClosed,
+                    coro.TimeoutError,
+                    coro.CoroutineSocketWake,
+                    socket.error):
+                    #
+                    # can not send the error, since it is an IO problem,
+                    # but set the response code anyway to something denoting
+                    # the issue
+                    #
+                    self.traceback(logging.DEBUG)
+                    self.response(506)
+                    raise
+                except:
+                    self.traceback()
+                    self.send_error(500)
         finally:
             self.server.request_ended(
                 self.request,
